@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../data/mock_data.dart' as data;
 import '../logic/matching.dart';
 import '../logic/spoiler.dart';
 import '../models/models.dart';
+import '../services/social_service.dart';
 
-/// Uygulama durumu. Şimdilik bellekte; sonra Firebase (Firestore) ile senkronlanacak.
+/// Uygulama durumu. Giriş yapılmadıysa örnek veriyle (bellekte) çalışır;
+/// [connect] çağrılınca arkadaşlar, ilerleme ve sohbet Firebase ile senkronlanır.
 class AppState extends ChangeNotifier {
   AppState({List<MediaTitle>? catalog}) : _catalog = catalog ?? data.titles;
 
@@ -39,11 +43,98 @@ class AppState extends ChangeNotifier {
   };
   final List<EpisodeMessage> _messages = [...data.seedMessages];
 
-  List<Group> get groups => data.groups;
-  List<Friend> get friends => data.friends;
+  // ---------- Bulut (Firebase) ----------
+
+  SocialService? _social;
+  SocialService? get social => _social;
+  bool get isOnline => _social != null;
+  String myName = 'Sen';
+  String? myFriendCode;
+  List<Friend> _friends = [...data.friends];
+  final _subs = <StreamSubscription<Object?>>[];
+  final _friendProgressSubs = <String, StreamSubscription<Object?>>{};
+
+  /// Giriş yapan kullanıcının verilerine bağlanır; örnek arkadaş ve sohbetler kalkar.
+  Future<void> connect(SocialService social, {required String name}) async {
+    await disconnect();
+    _social = social;
+    myFriendCode = await social.ensureProfile(name: name);
+    _friends = [];
+    _progress
+      ..clear()
+      ..[data.me] = {};
+    _messages.clear();
+    _likes
+      ..clear()
+      ..[data.me] = {};
+    _subs.add(social.myProfile().listen((p) {
+      myName = p.name;
+      myFriendCode = p.friendCode;
+      myPlatforms = {...p.platforms};
+      notifyListeners();
+    }));
+    _subs.add(social.progress(social.uid).listen((m) {
+      _progress[data.me] = {...m};
+      notifyListeners();
+    }));
+    _subs.add(social.friends().listen((list) {
+      _friends = list;
+      for (final f in list) {
+        _friendProgressSubs.putIfAbsent(
+          f.id,
+          () => social.progress(f.id).listen((m) {
+            _progress[f.id] = {...m};
+            notifyListeners();
+          }),
+        );
+      }
+      notifyListeners();
+    }));
+    notifyListeners();
+  }
+
+  /// Çıkış işlemi (AuthGate tarafından verilir).
+  Future<void> Function()? onSignOut;
+
+  Future<void> signOut() async {
+    await disconnect();
+    notifyListeners();
+    await onSignOut?.call();
+  }
+
+  Future<void> disconnect() async {
+    for (final s in [..._subs, ..._friendProgressSubs.values]) {
+      await s.cancel();
+    }
+    _subs.clear();
+    _friendProgressSubs.clear();
+    _social = null;
+  }
+
+  /// Arkadaş koduyla arkadaş ekler; eklenen kişinin adını döndürür.
+  Future<String> addFriend(String code) {
+    final s = _social;
+    if (s == null) throw const FriendError('Arkadaş eklemek için giriş yapmalısın.');
+    return s.addFriendByCode(code);
+  }
+
+  // ---------- Kişiler ----------
+
+  /// Bulutta: tüm arkadaşlar bir grup, her arkadaş ayrıca ikili grup.
+  List<Group> get groups {
+    if (!isOnline) return data.groups;
+    if (_friends.isEmpty) return const [Group(id: 'solo', name: 'Sadece ben', memberIds: [data.me])];
+    return [
+      Group(id: 'all', name: 'Tüm arkadaşlarım', memberIds: [data.me, ..._friends.map((f) => f.id)]),
+      for (final f in _friends) Group(id: 'p-${f.id}', name: f.name, memberIds: [data.me, f.id]),
+    ];
+  }
+
+  List<Friend> get friends => _friends;
   List<MediaTitle> get allTitles => _catalog;
 
-  Friend friend(String id) => data.friends.firstWhere((f) => f.id == id);
+  Friend friend(String id) => _friends.firstWhere((f) => f.id == id,
+      orElse: () => Friend(id: id, name: 'Arkadaş', platforms: const {}));
   MediaTitle title(String id) => _catalog.firstWhere((t) => t.id == id);
   String nameOf(String id) => id == data.me ? 'Sen' : friend(id).name;
 
@@ -52,6 +143,7 @@ class AppState extends ChangeNotifier {
 
   void togglePlatform(Platform p) {
     myPlatforms.contains(p) ? myPlatforms.remove(p) : myPlatforms.add(p);
+    _social?.setPlatforms(myPlatforms);
     notifyListeners();
   }
 
@@ -100,12 +192,13 @@ class AppState extends ChangeNotifier {
       .toList();
 
   void followSeries(MediaTitle t) {
-    _progress[data.me]!.putIfAbsent(t.id, () => EpisodeRef.none);
-    notifyListeners();
+    if (_progress[data.me]!.containsKey(t.id)) return;
+    setProgress(t, EpisodeRef.none);
   }
 
   void setProgress(MediaTitle t, EpisodeRef ep) {
     _progress[data.me]![t.id] = ep;
+    _social?.setProgress(t.id, ep);
     notifyListeners();
   }
 
@@ -115,7 +208,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Bu diziyi izleyen arkadaşlar.
-  List<Friend> friendsWatching(MediaTitle t) => data.friends
+  List<Friend> friendsWatching(MediaTitle t) => _friends
       .where((f) => _progress[f.id]?.containsKey(t.id) ?? false)
       .toList();
 
@@ -127,7 +220,26 @@ class AppState extends ChangeNotifier {
         ? a.episode.compareTo(b.episode)
         : a.sentAt.compareTo(b.sentAt));
 
+  /// Sohbetin canlı akışı. Bulutta sunucudan, değilse bellekten gelir.
+  Stream<List<EpisodeMessage>> conversationStream(MediaTitle t, String friendId) {
+    final s = _social;
+    if (s != null) return s.messages(t.id, friendId, progressOf(data.me, t.id));
+    final controller = StreamController<List<EpisodeMessage>>();
+    void push() => controller.add(conversation(t, friendId));
+    controller
+      ..onListen = () {
+        push();
+        addListener(push);
+      }
+      ..onCancel = () => removeListener(push);
+    return controller.stream;
+  }
+
   void sendMessage(MediaTitle t, String friendId, EpisodeRef ep, String text) {
+    if (_social case final s?) {
+      s.sendMessage(t.id, friendId, ep, text);
+      return;
+    }
     _messages.add(EpisodeMessage(
         authorId: data.me, friendId: friendId, titleId: t.id, episode: ep, text: text, sentAt: DateTime.now()));
     notifyListeners();

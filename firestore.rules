@@ -1,0 +1,79 @@
+rules_version = '2';
+
+// İzleyelim sunucu kuralları. Spoiler koruması burada da uygulanır:
+// bir kullanıcı, izlemediği bölümlere ait mesajları sunucudan hiç okuyamaz.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function areFriends(a, b) { return exists(/databases/$(database)/documents/users/$(a)/friends/$(b)); }
+
+    // Kullanıcının bir dizideki ilerlemesi (S2B5 -> 2005); hiç izlemediyse 0.
+    function progressOf(uid, titleId) {
+      let p = /databases/$(database)/documents/users/$(uid)/progress/$(titleId);
+      return exists(p) ? get(p).data.epIndex : 0;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['name', 'friendCode', 'platforms'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40;
+      allow update: if isMe(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'platforms']);
+
+      match /friends/{friendUid} {
+        allow read: if isMe(uid);
+        // Kendi listeme, ancak geçerli bir arkadaş koduyla eklerim.
+        allow create: if isMe(uid)
+          && request.resource.data.code is string
+          && get(/databases/$(database)/documents/friendCodes/$(request.resource.data.code)).data.uid == friendUid;
+        // Karşı tarafın listesine, ancak ben onu zaten eklediysem kendimi yazarım.
+        allow create: if isMe(friendUid) && areFriends(friendUid, uid);
+        allow delete: if isMe(uid);
+      }
+
+      match /progress/{titleId} {
+        allow read: if isMe(uid) || (signedIn() && areFriends(uid, request.auth.uid));
+        allow write: if isMe(uid)
+          && request.resource.data.epIndex is int
+          && request.resource.data.epIndex == request.resource.data.season * 1000 + request.resource.data.episode;
+      }
+    }
+
+    match /friendCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // chatId = "<uidA>_<uidB>__<titleId>", uid'ler alfabetik sırada.
+    match /chats/{chatId}/messages/{messageId} {
+      function members() { return chatId.split('__')[0].split('_'); }
+      function titleId() { return chatId.split('__')[1]; }
+      function friendOf(me) { return members()[0] == me ? members()[1] : members()[0]; }
+
+      allow read: if signedIn()
+        && request.auth.uid in members()
+        && resource.data.epIndex <= progressOf(request.auth.uid, titleId());
+
+      allow create: if signedIn()
+        && request.auth.uid in members()
+        && areFriends(request.auth.uid, friendOf(request.auth.uid))
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.titleId == titleId()
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.sentAt == request.time
+        && request.resource.data.epIndex == request.resource.data.season * 1000 + request.resource.data.episode
+        && request.resource.data.epIndex > 0
+        && request.resource.data.epIndex <= progressOf(request.auth.uid, titleId())
+        && request.resource.data.epIndex <= progressOf(friendOf(request.auth.uid), titleId());
+
+      allow update, delete: if false;
+    }
+  }
+}

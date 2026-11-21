@@ -20,7 +20,8 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
-    final group = app.groups[_groupIndex];
+    final groupIndex = _groupIndex.clamp(0, app.groups.length - 1);
+    final group = app.groups[groupIndex];
     final deck = app.deckFor(group, type: _type);
     final matches = app.matchesFor(group);
 
@@ -33,7 +34,7 @@ class _MatchScreenState extends State<MatchScreen> {
             children: [
               Expanded(
                 child: DropdownButton<int>(
-                  value: _groupIndex,
+                  value: groupIndex,
                   isExpanded: true,
                   underline: const SizedBox(),
                   style: Theme.of(context).textTheme.titleLarge,

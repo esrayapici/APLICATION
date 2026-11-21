@@ -49,3 +49,7 @@ app.*.map.json
 
 # Gizli anahtarlar (GitHub'a gönderilmez)
 config/secrets.json
+
+# Kural testleri
+rules-test/node_modules/
+*.log
