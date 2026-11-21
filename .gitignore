@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Gizli anahtarlar (GitHub'a gönderilmez)
+config/secrets.json

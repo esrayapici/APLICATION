@@ -20,9 +20,13 @@ Katalog: TMDB anahtarı verilirse Türkiye'deki popüler film/diziler, afişler 
 ```
 flutter pub get
 flutter run        # bağlı Android cihaz veya emülatör (örnek veri)
-flutter run --dart-define=TMDB_API_KEY=anahtarın   # gerçek katalog
+flutter run --dart-define-from-file=config/secrets.json   # gerçek katalog
 flutter test
 ```
+
+## TMDB anahtarı
+`config/secrets.example.json` dosyasını `config/secrets.json` adıyla kopyala ve anahtarını yaz.
+`config/secrets.json` `.gitignore` içinde, GitHub'a gönderilmez.
 
 ## Klasör yapısı
 - `lib/models/` veri modelleri
