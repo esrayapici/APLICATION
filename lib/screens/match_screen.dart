@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 import 'widgets.dart';
 
 /// Grupla film/dizi seçme: kartı sağa kaydır = beğen, sola = geç.
@@ -20,7 +21,8 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
-    final group = app.groups[_groupIndex];
+    final groupIndex = _groupIndex.clamp(0, app.groups.length - 1);
+    final group = app.groups[groupIndex];
     final deck = app.deckFor(group, type: _type);
     final matches = app.matchesFor(group);
 
@@ -33,13 +35,16 @@ class _MatchScreenState extends State<MatchScreen> {
             children: [
               Expanded(
                 child: DropdownButton<int>(
-                  value: _groupIndex,
+                  value: groupIndex,
                   isExpanded: true,
                   underline: const SizedBox(),
                   style: Theme.of(context).textTheme.titleLarge,
                   items: [
                     for (var i = 0; i < app.groups.length; i++)
-                      DropdownMenuItem(value: i, child: Text(app.groups[i].name)),
+                      DropdownMenuItem(
+                        value: i,
+                        child: Text(app.groups[i].name),
+                      ),
                   ],
                   onChanged: (i) => setState(() => _groupIndex = i!),
                 ),
@@ -72,7 +77,9 @@ class _MatchScreenState extends State<MatchScreen> {
           const SizedBox(height: 16),
           Expanded(
             child: deck.isEmpty
-                ? const Center(child: Text('Bu grup için oylanacak yapım kalmadı.'))
+                ? const Center(
+                    child: Text('Bu grup için oylanacak yapım kalmadı.'),
+                  )
                 : _SwipeCard(
                     key: ValueKey(deck.first.id),
                     title: deck.first,
@@ -96,7 +103,12 @@ class _MatchScreenState extends State<MatchScreen> {
         icon: const Icon(Icons.celebration, size: 40),
         title: const Text('Eşleşme!'),
         content: Text('Gruptaki herkes "${t.name}" izlemek istiyor.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Harika'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Harika'),
+          ),
+        ],
       ),
     );
   }
@@ -109,12 +121,18 @@ class _MatchScreenState extends State<MatchScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text('Eşleşmeler', style: Theme.of(context).textTheme.titleLarge),
-          if (matches.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Henüz eşleşme yok.')),
+          if (matches.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Henüz eşleşme yok.'),
+            ),
           for (final t in matches)
             ListTile(
               leading: PosterBox(title: t, size: 32),
               title: Text(t.name),
-              subtitle: Text('${t.type == TitleType.film ? 'Film' : 'Dizi'} · ${t.platforms.map((p) => p.label).join(', ')}'),
+              subtitle: Text(
+                '${t.type == TitleType.film ? 'Film' : 'Dizi'} · ${t.platforms.map((p) => p.label).join(', ')}',
+              ),
             ),
         ],
       ),
@@ -138,57 +156,215 @@ class _SwipeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
     return Column(
       children: [
         Expanded(
           child: Dismissible(
             key: ValueKey('card-${title.id}'),
-            onDismissed: (dir) => dir == DismissDirection.startToEnd ? onLike() : onPass(),
-            background: _swipeHint(Icons.favorite, Colors.green, Alignment.centerLeft),
-            secondaryBackground: _swipeHint(Icons.close, Colors.red, Alignment.centerRight),
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Flexible(flex: 3, child: Center(child: FittedBox(child: PosterBox(title: title, size: 140)))),
-                    const SizedBox(height: 16),
-                    Text(title.name, style: text.headlineSmall),
-                    Text(
-                      [
-                        title.type == TitleType.film ? 'Film' : 'Dizi · ${title.seasons.length} sezon',
-                        '${title.year}',
-                        title.genres.join(', '),
-                      ].join(' · '),
-                      style: text.bodySmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(flex: 2, child: Text(title.overview, style: text.bodyMedium, overflow: TextOverflow.fade)),
-                    PlatformChips(platforms: title.platforms, highlight: groupPlatforms),
-                  ],
-                ),
-              ),
+            onDismissed: (dir) =>
+                dir == DismissDirection.startToEnd ? onLike() : onPass(),
+            background: _swipeHint(
+              Icons.favorite_rounded,
+              AppColors.accent,
+              Alignment.centerLeft,
             ),
+            secondaryBackground: _swipeHint(
+              Icons.close,
+              AppColors.textMuted,
+              Alignment.centerRight,
+            ),
+            child: _PosterCard(title: title, groupPlatforms: groupPlatforms),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton.filledTonal(iconSize: 32, onPressed: onPass, icon: const Icon(Icons.close)),
-            IconButton.filled(iconSize: 32, onPressed: onLike, icon: const Icon(Icons.favorite)),
+            _RoundAction(
+              label: 'Geç',
+              icon: Icons.close_rounded,
+              size: 60,
+              onTap: onPass,
+            ),
+            const SizedBox(width: 36),
+            _RoundAction(
+              label: 'Beğen',
+              icon: Icons.favorite_rounded,
+              size: 76,
+              onTap: onLike,
+              highlighted: true,
+            ),
           ],
         ),
+        const SizedBox(height: 8),
       ],
     );
   }
 
   Widget _swipeHint(IconData icon, Color color, Alignment align) => Container(
-        alignment: align,
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Icon(icon, color: color, size: 64),
-      );
+    alignment: align,
+    padding: const EdgeInsets.symmetric(horizontal: 32),
+    child: Icon(icon, color: color, size: 64),
+  );
+}
+
+/// Tam boy afiş kartı: afiş arka planda, bilgiler alttaki karartmanın üstünde.
+class _PosterCard extends StatelessWidget {
+  const _PosterCard({required this.title, required this.groupPlatforms});
+
+  final MediaTitle title;
+  final Set<Platform> groupPlatforms;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final meta = [
+      title.type == TitleType.film
+          ? 'Film'
+          : 'Dizi · ${title.seasons.length} sezon',
+      '${title.year}',
+      ...title.genres.take(2),
+    ].join('  ·  ');
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: AppColors.signature,
+        boxShadow: AppColors.glow(),
+      ),
+      padding: const EdgeInsets.all(2), // ince renkli çerçeve
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PosterFill(title: title),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.35, 1],
+                  colors: [Color(0x000B0716), Color(0xF20B0716)],
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              left: 16,
+              child: _Tag(
+                label: title.type == TitleType.film ? 'FİLM' : 'DİZİ',
+                color: title.type == TitleType.film
+                    ? AppColors.primary
+                    : AppColors.accent,
+              ),
+            ),
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title.name, style: text.headlineMedium, maxLines: 2),
+                  const SizedBox(height: 6),
+                  Text(meta, style: text.bodySmall),
+                  const SizedBox(height: 10),
+                  Text(
+                    title.overview,
+                    style: text.bodyMedium?.copyWith(
+                      color: AppColors.text.withValues(alpha: 0.85),
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 14),
+                  PlatformChips(
+                    platforms: title.platforms,
+                    highlight: groupPlatforms,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 11,
+        fontVariations: [FontVariation('wght', 800)],
+        letterSpacing: 1.2,
+        color: AppColors.onPrimary,
+      ),
+    ),
+  );
+}
+
+/// Yuvarlak eylem düğmesi; vurgulu olan imza geçişli ve ışıltılı.
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({
+    required this.label,
+    required this.icon,
+    required this.size,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final double size;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: highlighted ? AppColors.signature : null,
+            color: highlighted ? null : AppColors.card,
+            border: highlighted
+                ? null
+                : Border.all(color: AppColors.line, width: 1.5),
+            boxShadow: highlighted ? AppColors.glow(AppColors.accent) : null,
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Icon(
+              icon,
+              size: size * 0.45,
+              color: highlighted ? AppColors.onAccent : AppColors.text,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

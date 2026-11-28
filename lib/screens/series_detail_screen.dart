@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../logic/spoiler.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 import 'episode_chat_screen.dart';
 import 'widgets.dart';
 
@@ -105,7 +106,13 @@ class _EpisodeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilterChip(
-        label: Text('${ep.episode}'),
+        label: Text(
+          '${ep.episode}',
+          style: TextStyle(
+            fontVariations: const [FontVariation('wght', 600)],
+            color: watched ? AppColors.onPrimary : AppColors.textMuted,
+          ),
+        ),
         selected: watched,
         showCheckmark: false,
         onSelected: (_) => onTap(),

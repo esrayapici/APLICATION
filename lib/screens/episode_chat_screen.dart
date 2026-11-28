@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../logic/spoiler.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 
 /// Bir arkadaşla dizi sohbeti. Her mesaj bir bölüme bağlıdır:
 /// - O bölümü izlemediysen mesaj kilitli görünür.
@@ -20,6 +21,8 @@ class EpisodeChatScreen extends StatefulWidget {
 class _EpisodeChatScreenState extends State<EpisodeChatScreen> {
   final _controller = TextEditingController();
   EpisodeRef? _target;
+  Stream<List<EpisodeMessage>>? _stream;
+  EpisodeRef? _streamFor;
 
   @override
   void dispose() {
@@ -39,7 +42,11 @@ class _EpisodeChatScreenState extends State<EpisodeChatScreen> {
         .where((ep) => SpoilerGuard.canPost(ep, mine, theirs))
         .toList();
     final target = postable.contains(_target) ? _target : (postable.isEmpty ? null : postable.last);
-    final messages = app.conversation(t, friend.id);
+    // İlerlemem değişince akışı yenile: sunucu yalnızca izlediğim bölümlere kadarını verir.
+    if (_stream == null || _streamFor != mine) {
+      _stream = app.conversationStream(t, friend.id);
+      _streamFor = mine;
+    }
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -61,11 +68,28 @@ class _EpisodeChatScreenState extends State<EpisodeChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: [
-                for (final m in messages) _Bubble(message: m, visible: SpoilerGuard.canSee(m, mine)),
-              ],
+            child: StreamBuilder<List<EpisodeMessage>>(
+              stream: _stream,
+              builder: (context, snap) {
+                final messages = snap.data ?? const <EpisodeMessage>[];
+                return ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    if (snap.hasError)
+                      const Text('Mesajlar yüklenemedi. Bağlantını kontrol et.'),
+                    for (final m in messages) _Bubble(message: m, visible: SpoilerGuard.canSee(m, mine)),
+                    if (app.isOnline && mine < theirs)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text(
+                          'Arkadaşın senden önde. Sonraki bölümlerin mesajları sen izledikçe açılır.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
           SafeArea(
@@ -139,7 +163,7 @@ class _Bubble extends StatelessWidget {
             visible
                 ? Text(message.text)
                 : const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.lock_outline, size: 16),
+                    Icon(Icons.lock_outline, size: 16, color: AppColors.accent),
                     SizedBox(width: 6),
                     Flexible(child: Text('Spoiler gizlendi. Bu bölümü izleyince açılır.')),
                   ]),
