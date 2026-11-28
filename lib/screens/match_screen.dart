@@ -156,7 +156,6 @@ class _SwipeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
     return Column(
       children: [
         Expanded(
@@ -165,8 +164,8 @@ class _SwipeCard extends StatelessWidget {
             onDismissed: (dir) =>
                 dir == DismissDirection.startToEnd ? onLike() : onPass(),
             background: _swipeHint(
-              Icons.favorite,
-              AppColors.primary,
+              Icons.favorite_rounded,
+              AppColors.accent,
               Alignment.centerLeft,
             ),
             secondaryBackground: _swipeHint(
@@ -174,72 +173,30 @@ class _SwipeCard extends StatelessWidget {
               AppColors.textMuted,
               Alignment.centerRight,
             ),
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Flexible(
-                      flex: 3,
-                      child: Center(
-                        child: FittedBox(
-                          child: PosterBox(title: title, size: 140),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(title.name, style: text.headlineSmall),
-                    Text(
-                      [
-                        title.type == TitleType.film
-                            ? 'Film'
-                            : 'Dizi · ${title.seasons.length} sezon',
-                        '${title.year}',
-                        title.genres.join(', '),
-                      ].join(' · '),
-                      style: text.bodySmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        title.overview,
-                        style: text.bodyMedium,
-                        overflow: TextOverflow.fade,
-                      ),
-                    ),
-                    PlatformChips(
-                      platforms: title.platforms,
-                      highlight: groupPlatforms,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            child: _PosterCard(title: title, groupPlatforms: groupPlatforms),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton.filled(
-              iconSize: 32,
-              onPressed: onPass,
-              style: IconButton.styleFrom(
-                backgroundColor: AppColors.cardHigh,
-                foregroundColor: AppColors.text,
-              ),
-              icon: const Icon(Icons.close),
+            _RoundAction(
+              label: 'Geç',
+              icon: Icons.close_rounded,
+              size: 60,
+              onTap: onPass,
             ),
-            IconButton.filled(
-              iconSize: 32,
-              onPressed: onLike,
-              icon: const Icon(Icons.favorite),
+            const SizedBox(width: 36),
+            _RoundAction(
+              label: 'Beğen',
+              icon: Icons.favorite_rounded,
+              size: 76,
+              onTap: onLike,
+              highlighted: true,
             ),
           ],
         ),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -249,4 +206,165 @@ class _SwipeCard extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 32),
     child: Icon(icon, color: color, size: 64),
   );
+}
+
+/// Tam boy afiş kartı: afiş arka planda, bilgiler alttaki karartmanın üstünde.
+class _PosterCard extends StatelessWidget {
+  const _PosterCard({required this.title, required this.groupPlatforms});
+
+  final MediaTitle title;
+  final Set<Platform> groupPlatforms;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final meta = [
+      title.type == TitleType.film
+          ? 'Film'
+          : 'Dizi · ${title.seasons.length} sezon',
+      '${title.year}',
+      ...title.genres.take(2),
+    ].join('  ·  ');
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: AppColors.signature,
+        boxShadow: AppColors.glow(),
+      ),
+      padding: const EdgeInsets.all(2), // ince renkli çerçeve
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PosterFill(title: title),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.35, 1],
+                  colors: [Color(0x000B0716), Color(0xF20B0716)],
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              left: 16,
+              child: _Tag(
+                label: title.type == TitleType.film ? 'FİLM' : 'DİZİ',
+                color: title.type == TitleType.film
+                    ? AppColors.primary
+                    : AppColors.accent,
+              ),
+            ),
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title.name, style: text.headlineMedium, maxLines: 2),
+                  const SizedBox(height: 6),
+                  Text(meta, style: text.bodySmall),
+                  const SizedBox(height: 10),
+                  Text(
+                    title.overview,
+                    style: text.bodyMedium?.copyWith(
+                      color: AppColors.text.withValues(alpha: 0.85),
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 14),
+                  PlatformChips(
+                    platforms: title.platforms,
+                    highlight: groupPlatforms,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 11,
+        fontVariations: [FontVariation('wght', 800)],
+        letterSpacing: 1.2,
+        color: AppColors.onPrimary,
+      ),
+    ),
+  );
+}
+
+/// Yuvarlak eylem düğmesi; vurgulu olan imza geçişli ve ışıltılı.
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({
+    required this.label,
+    required this.icon,
+    required this.size,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final double size;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: highlighted ? AppColors.signature : null,
+            color: highlighted ? null : AppColors.card,
+            border: highlighted
+                ? null
+                : Border.all(color: AppColors.line, width: 1.5),
+            boxShadow: highlighted ? AppColors.glow(AppColors.accent) : null,
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Icon(
+              icon,
+              size: size * 0.45,
+              color: highlighted ? AppColors.onAccent : AppColors.text,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
