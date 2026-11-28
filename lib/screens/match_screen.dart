@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 import 'widgets.dart';
 
 /// Grupla film/dizi seçme: kartı sağa kaydır = beğen, sola = geç.
@@ -40,7 +41,10 @@ class _MatchScreenState extends State<MatchScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                   items: [
                     for (var i = 0; i < app.groups.length; i++)
-                      DropdownMenuItem(value: i, child: Text(app.groups[i].name)),
+                      DropdownMenuItem(
+                        value: i,
+                        child: Text(app.groups[i].name),
+                      ),
                   ],
                   onChanged: (i) => setState(() => _groupIndex = i!),
                 ),
@@ -73,7 +77,9 @@ class _MatchScreenState extends State<MatchScreen> {
           const SizedBox(height: 16),
           Expanded(
             child: deck.isEmpty
-                ? const Center(child: Text('Bu grup için oylanacak yapım kalmadı.'))
+                ? const Center(
+                    child: Text('Bu grup için oylanacak yapım kalmadı.'),
+                  )
                 : _SwipeCard(
                     key: ValueKey(deck.first.id),
                     title: deck.first,
@@ -97,7 +103,12 @@ class _MatchScreenState extends State<MatchScreen> {
         icon: const Icon(Icons.celebration, size: 40),
         title: const Text('Eşleşme!'),
         content: Text('Gruptaki herkes "${t.name}" izlemek istiyor.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Harika'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Harika'),
+          ),
+        ],
       ),
     );
   }
@@ -110,12 +121,18 @@ class _MatchScreenState extends State<MatchScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text('Eşleşmeler', style: Theme.of(context).textTheme.titleLarge),
-          if (matches.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Henüz eşleşme yok.')),
+          if (matches.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Henüz eşleşme yok.'),
+            ),
           for (final t in matches)
             ListTile(
               leading: PosterBox(title: t, size: 32),
               title: Text(t.name),
-              subtitle: Text('${t.type == TitleType.film ? 'Film' : 'Dizi'} · ${t.platforms.map((p) => p.label).join(', ')}'),
+              subtitle: Text(
+                '${t.type == TitleType.film ? 'Film' : 'Dizi'} · ${t.platforms.map((p) => p.label).join(', ')}',
+              ),
             ),
         ],
       ),
@@ -145,9 +162,18 @@ class _SwipeCard extends StatelessWidget {
         Expanded(
           child: Dismissible(
             key: ValueKey('card-${title.id}'),
-            onDismissed: (dir) => dir == DismissDirection.startToEnd ? onLike() : onPass(),
-            background: _swipeHint(Icons.favorite, Colors.green, Alignment.centerLeft),
-            secondaryBackground: _swipeHint(Icons.close, Colors.red, Alignment.centerRight),
+            onDismissed: (dir) =>
+                dir == DismissDirection.startToEnd ? onLike() : onPass(),
+            background: _swipeHint(
+              Icons.favorite,
+              AppColors.primary,
+              Alignment.centerLeft,
+            ),
+            secondaryBackground: _swipeHint(
+              Icons.close,
+              AppColors.textMuted,
+              Alignment.centerRight,
+            ),
             child: Card(
               clipBehavior: Clip.antiAlias,
               child: Padding(
@@ -155,20 +181,39 @@ class _SwipeCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(flex: 3, child: Center(child: FittedBox(child: PosterBox(title: title, size: 140)))),
+                    Flexible(
+                      flex: 3,
+                      child: Center(
+                        child: FittedBox(
+                          child: PosterBox(title: title, size: 140),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Text(title.name, style: text.headlineSmall),
                     Text(
                       [
-                        title.type == TitleType.film ? 'Film' : 'Dizi · ${title.seasons.length} sezon',
+                        title.type == TitleType.film
+                            ? 'Film'
+                            : 'Dizi · ${title.seasons.length} sezon',
                         '${title.year}',
                         title.genres.join(', '),
                       ].join(' · '),
                       style: text.bodySmall,
                     ),
                     const SizedBox(height: 8),
-                    Expanded(flex: 2, child: Text(title.overview, style: text.bodyMedium, overflow: TextOverflow.fade)),
-                    PlatformChips(platforms: title.platforms, highlight: groupPlatforms),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        title.overview,
+                        style: text.bodyMedium,
+                        overflow: TextOverflow.fade,
+                      ),
+                    ),
+                    PlatformChips(
+                      platforms: title.platforms,
+                      highlight: groupPlatforms,
+                    ),
                   ],
                 ),
               ),
@@ -179,8 +224,20 @@ class _SwipeCard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            IconButton.filledTonal(iconSize: 32, onPressed: onPass, icon: const Icon(Icons.close)),
-            IconButton.filled(iconSize: 32, onPressed: onLike, icon: const Icon(Icons.favorite)),
+            IconButton.filled(
+              iconSize: 32,
+              onPressed: onPass,
+              style: IconButton.styleFrom(
+                backgroundColor: AppColors.cardHigh,
+                foregroundColor: AppColors.text,
+              ),
+              icon: const Icon(Icons.close),
+            ),
+            IconButton.filled(
+              iconSize: 32,
+              onPressed: onLike,
+              icon: const Icon(Icons.favorite),
+            ),
           ],
         ),
       ],
@@ -188,8 +245,8 @@ class _SwipeCard extends StatelessWidget {
   }
 
   Widget _swipeHint(IconData icon, Color color, Alignment align) => Container(
-        alignment: align,
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Icon(icon, color: color, size: 64),
-      );
+    alignment: align,
+    padding: const EdgeInsets.symmetric(horizontal: 32),
+    child: Icon(icon, color: color, size: 64),
+  );
 }

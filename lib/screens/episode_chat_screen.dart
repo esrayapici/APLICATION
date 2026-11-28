@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../logic/spoiler.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../theme.dart';
 
 /// Bir arkadaşla dizi sohbeti. Her mesaj bir bölüme bağlıdır:
 /// - O bölümü izlemediysen mesaj kilitli görünür.
@@ -162,7 +163,7 @@ class _Bubble extends StatelessWidget {
             visible
                 ? Text(message.text)
                 : const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.lock_outline, size: 16),
+                    Icon(Icons.lock_outline, size: 16, color: AppColors.accent),
                     SizedBox(width: 6),
                     Flexible(child: Text('Spoiler gizlendi. Bu bölümü izleyince açılır.')),
                   ]),

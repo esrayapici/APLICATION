@@ -8,6 +8,7 @@ import 'screens/home_shell.dart';
 import 'services/firebase_config.dart';
 import 'services/tmdb_service.dart';
 import 'state/app_state.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,11 +44,7 @@ class IzleyelimApp extends StatelessWidget {
       child: MaterialApp(
         title: 'İzleyelim',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorSchemeSeed: const Color(0xFFE5484D),
-          brightness: Brightness.dark,
-          useMaterial3: true,
-        ),
+        theme: buildAppTheme(),
         home: firebaseReady
             ? AuthGate(auth: FirebaseAuth.instance, db: FirebaseFirestore.instance)
             : const HomeShell(),
